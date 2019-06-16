@@ -1,4 +1,3 @@
-#include <stdio.h>
 /*
 MIT License
 Copyright (c) 2019 Keith J. Cancel
@@ -19,11 +18,13 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-
 #include <windows.h>
+
+#include "file-list.h"
 
 typedef struct Key {
    char     *str;
@@ -80,7 +81,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "packer: error: unrecognized command line option ‘%s’\n", cur);
     }
     if(src_file == NULL) {
-        fprintf(stderr, "packer: fatal error: no input file\n");
+        fprintf(stderr, "packer: fatal error: no input file/directory\n");
         return -1;
     }
     if(verbose) {
@@ -93,14 +94,6 @@ int main(int argc, char **argv) {
         return unpack(src_file, &key, verbose);
     }
     return 0;
-}
-
-uint32_t read_uint32(uint8_t *bytes, size_t len) {
-    uint32_t val = 0;
-    for(size_t i = 0; i < 4 && i < len; i++) {
-        val |= bytes[i] << (i * 8);
-    }
-    return val;
 }
 
 FILE* fopen_check(const char *filename, const char * mode) {
@@ -218,7 +211,8 @@ int fread_uint32_encoded(FILE *src, uint32_t *val, Key* key) {
         if(fread(&byte, 1, 1, src) == 0) {
             break;
         }
-        byte ^= get_next_key_char(key);
+        char k = get_next_key_char(key);
+        byte ^= k;
         tmp |= byte << (i * 8);
         total++;
     }
@@ -272,13 +266,6 @@ int dir_create_recursive(char *path) {
     return 0;
 }
 
-typedef struct FileList {
-    struct FileList *next;
-    uint32_t offset;
-    uint32_t size;
-    uint8_t path[];
-} FileList;
-
 #define MANIP_BUFF_SZ 2048
 
 int unpack(char *src, Key *key, int verbose) {
@@ -328,10 +315,8 @@ int unpack(char *src, Key *key, int verbose) {
         fcopy_n_encoded(ignore, fp, key, ignore_len);
         fclose(ignore);
     }
-    // read file list
-    FileList *head = NULL;
-    // Use the fact the first member of a struct always has a zero offset.
-    FileList *tail = (FileList*)&head;
+    FileList list;
+    file_list_init(&list);
     for(size_t i = 0; i < files; i++) {
         uint32_t path_len, size, offset;
         if(
@@ -342,40 +327,37 @@ int unpack(char *src, Key *key, int verbose) {
             fprintf(stderr, "packer: fatal error: This Pack file is corrupted.\n");
             return -1;
         }
-        FileList *tmp = malloc_checked(sizeof(FileList) + path_len + 1);
-        tmp->next   = NULL;
+        FileNode *tmp = file_node_create_size_n(path_len);
         tmp->size   = size;
         tmp->offset = offset;
         if(fread_encoded(tmp->path, 1, path_len, fp, key) != (int)path_len) {
             fprintf(stderr, "packer: fatal error: The Pack file is corrupted.\n");
             return -1;
         }
-        tail->next = tmp;
-        tail = tmp;
+        file_list_add(&list, tmp);
     }
-    tail = head;
-    while(tail != NULL) {
-        snprintf(manip_buff, MANIP_BUFF_SZ, "%s/%s", base, tail->path);
+    FileNode *cur = list.head;
+    while(cur != NULL) {
+        snprintf(manip_buff, MANIP_BUFF_SZ, "%s/%s", base, cur->path);
         dir_get_parent(manip_buff);
         if(verbose) {
             printf("Creating directory ‘%s’\n", manip_buff);
         }
         dir_create_recursive(manip_buff);
-        snprintf(manip_buff, MANIP_BUFF_SZ, "%s/%s", base, tail->path);
+        snprintf(manip_buff, MANIP_BUFF_SZ, "%s/%s", base, cur->path);
         if(verbose) {
             printf("Creating file ‘%s’\n", manip_buff);
         }
-        fseek(fp, tail->offset, SEEK_SET);
+        fseek(fp, cur->offset, SEEK_SET);
         FILE *file = fopen_check(manip_buff, "wb");
-        if(fcopy_n_encoded(file, fp, key, tail->size) != (int)tail->size) {
+        if(fcopy_n_encoded(file, fp, key, cur->size) != (int)cur->size) {
             fprintf(stderr, "packer: fatal error: Failed to write all of ‘%s’.\n", manip_buff);
             return -1;
         }
         fclose(file);
-        FileList *tmp = tail;
-        tail = tail->next;
-        free(tmp);
+        cur = cur->next;
     }
+    file_list_free(&list);
     free(manip_buff);
     return 0;
 }
@@ -394,17 +376,66 @@ int file_exists(char *path) {
     return (dwAttrib != INVALID_FILE_ATTRIBUTES) ? 1 : 0;
 }
 
+int get_file_list(FileList *list, const char *base, const char *sub) {
+    size_t base_len    = strlen(base);
+    size_t sub_len     = strlen(sub);
+    // Handle empty strings
+    char   base_sep[2] = { '\0', '\0' };
+    char   sub_sep[2]  = { '\0', '\0' };
+    // Place seperator after path if longer than zero.
+    base_sep[0] = base_len > 0 ? '/' : '\0';
+    sub_sep[0]  = sub_len  > 0 ? '/' : '\0';
+    size_t byte_len = base_len + sub_len + 4; // max possible size
+    char   full_path[byte_len];
+    snprintf(full_path, byte_len, "%s%s%s%s*", base, base_sep, sub, sub_sep);
+    // Start search of path
+    WIN32_FIND_DATAA fdFile;
+    HANDLE find = FindFirstFileA(full_path, &fdFile);
+    if(find == INVALID_HANDLE_VALUE) {
+        return 0;
+    }
+    do {
+        // Skip these more of like logical files.
+        if(strcmp(fdFile.cFileName, ".") == 0 || strcmp(fdFile.cFileName, "..") == 0) {
+            continue;
+        }
+        size_t name_sz = sub_len + strlen(fdFile.cFileName) + 2;
+        char name[name_sz];
+        snprintf(name, name_sz, "%s%s%s", sub, sub_sep, fdFile.cFileName);
+        // Enter Sub-directories
+        if(fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            get_file_list(list, base, name);
+            continue;
+        }
+        // Add file to list
+        FileNode *tmp = file_node_create_size_n(strlen(name));
+        tmp->size = fdFile.nFileSizeLow;
+        strcpy(tmp->path, name);
+        file_list_add(list, tmp);
+    } while(FindNextFileA(find, &fdFile));
+    FindClose(find);
+    return 1;
+}
+
 int pack(char *path, Key *key, int verbose) {
     if(!path_is_dir(path)) {
         fprintf(stderr, "packer: fatal error: Not a directory: ‘%s’\n", path);
         return -1;
     }
-    char name[strlen(path) + 10];
+    FileList list;
+    file_list_init(&list);
+    get_file_list(&list, path, "");
+    FileNode *ignore = file_list_remove(&list, "__ignore_header__");
+    if(verbose) {
+        printf("Files to pack: %d\n", list.count);
+    }
+    size_t path_len = strlen(path);
+    char name[path_len + 10];
     for(unsigned i = 0; i < 100; i++) {
         if(i == 0) {
-            snprintf(name, strlen(path) + 10, "%s.pack", path);
+            snprintf(name, path_len + 10, "%s.pack", path);
         } else {
-            snprintf(name, strlen(path) + 10, "%s(%u).pack", path, i);
+            snprintf(name, path_len + 10, "%s(%u).pack", path, i);
         }
         if(!file_exists(name)) {
             break;
@@ -414,15 +445,64 @@ int pack(char *path, Key *key, int verbose) {
             return -1;
         }
     }
+    // Calculate size of the first offset
+    size_t first_offset = 12 + 12 * list.count;
+    uint32_t ignore_sz  = 0;
+    FileNode *cur = list.head;
+    while(cur != NULL) {
+        first_offset += strlen(cur->path);
+        cur = cur->next;
+    }
+    if(ignore != NULL) {
+        if(verbose) {
+            printf("Has a ‘__ignore_header__’\n");
+        }
+        first_offset += ignore->size;
+        ignore_sz     = ignore->size;
+    }
+    // Begin File Creation
     if(verbose) {
         printf("Creating pack file ‘%s’\n", name);
     }
     FILE *pk       = fopen_check(name, "wb");
-    char *txt_buff = malloc_checked(MANIP_BUFF_SZ);
     fwrite_encoded("pack", 1, 4, pk, key);
-    /*if(file_exists)
-    // TODO FINISH PACKING
-    */
+    fwrite_uint32_encoded(pk, list.count, key);
+    fwrite_uint32_encoded(pk, ignore_sz, key);
+    if(ignore != NULL) {
+        char pth[path_len + 19];
+        // Should probably handle the seperator like I do in get_file_list.
+        snprintf(pth, path_len + 19, "%s/__ignore_header__", path);
+        FILE *tmp = fopen_check(pth, "rb");
+        fcopy_encoded(pk, tmp, key);
+        fclose(tmp);
+        free(ignore);
+    }
+    // Write file list
+    cur = list.head;
+    uint32_t cur_offset = first_offset;
+    while(cur != NULL) {
+        fwrite_uint32_encoded(pk, strlen(cur->path), key);
+        fwrite_uint32_encoded(pk, cur->size, key);
+        fwrite_uint32_encoded(pk, cur_offset, key);
+        fwrite_encoded(cur->path, 1, strlen(cur->path), pk, key);
+        cur_offset += cur->size;
+        cur = cur->next;
+    }
+    // Write Files
+    cur = list.head;
+    while(cur != NULL) {
+        if(verbose) {
+            printf("Adding: %s\n", cur->path);
+        }
+        char pth[path_len + strlen(cur->path) + 2];
+        // Should probably handle the seperator like I do in get_file_list.
+        snprintf(pth, path_len + strlen(cur->path) + 2, "%s/%s", path, cur->path);
+        FILE *tmp = fopen_check(pth, "rb");
+        fcopy_encoded(pk, tmp, key);
+        fclose(tmp);
+        cur = cur->next;
+    }
     fclose(pk);
+    file_list_free(&list);
     return 0;
 }
