@@ -4,55 +4,55 @@
 #include <stdio.h>
 #include <windows.h>
 
-#define file ".\\NesysConfig.ini"
-#define app  "NesysConfig"
+#define FILE ".\\NesysConfig.ini"
+#define APP  "NesysConfig"
 
 
 void get_access_code(char* code, size_t capacity) {
-    GetPrivateProfileStringA(app, "AccessCode", NULL, code, capacity, file);
+    GetPrivateProfileStringA(APP, "AccessCode", NULL, code, capacity, FILE);
 }
 
 void save_access_code(const char* code) {
-    WritePrivateProfileStringA(app, "AccessCode", code, file);
+    WritePrivateProfileStringA(APP, "AccessCode", code, FILE);
 }
 
 void get_server_ip(char* ip, size_t capacity) {
-    GetPrivateProfileStringA(app, "serverIP", "192.168.1.205", ip, capacity, file);
+    GetPrivateProfileStringA(APP, "serverIP", "192.168.1.205", ip, capacity, FILE);
 }
 
 void save_server_ip(char* ip) {
-    WritePrivateProfileStringA(app, "serverIP", ip, file);
+    WritePrivateProfileStringA(APP, "serverIP", ip, FILE);
 }
 
 void get_exe_name(char* name, size_t capacity) {
-    GetPrivateProfileStringA(app, "exeName", "game1.exe", name, capacity, file);
+    GetPrivateProfileStringA(APP, "exeName", "game1.exe", name, capacity, FILE);
 }
 
 void set_exe_name(const char* code) {
-    WritePrivateProfileStringA(app, "exeName", code, file);
+    WritePrivateProfileStringA(APP, "exeName", code, FILE);
 }
 
 
 uint32_t get_drives() {
-    uint32_t v = GetPrivateProfileInt(app, "drives", 0, file) & 0x3ffffff;
+    uint32_t v = GetPrivateProfileInt(APP, "drives", 0, FILE) & 0x3ffffff;
     return v;
 }
 
 void save_drives(uint32_t drives) {
     char buf[11] = { 0 };
     snprintf(buf, 10, "%u", drives & 0x3ffffff);
-    WritePrivateProfileStringA(app, "drives", buf, file);
+    WritePrivateProfileStringA(APP, "drives", buf, FILE);
 }
 
 uint16_t get_port() {
-    uint16_t v = GetPrivateProfileInt(app, "port", 8764, file);
+    uint16_t v = GetPrivateProfileInt(APP, "port", 8764, FILE);
     return v;
 }
 
 void save_port(uint16_t port) {
     char buf[11] = { 0 };
     snprintf(buf, 10, "%u", port);
-    WritePrivateProfileStringA(app, "port", buf, file);
+    WritePrivateProfileStringA(APP, "port", buf, FILE);
 }
 
 void write_defaults_to_disk() {
