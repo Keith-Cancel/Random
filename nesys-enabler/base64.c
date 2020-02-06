@@ -101,3 +101,61 @@ void to_base64_no_buffer_check(const uint8_t* data, size_t len, uint8_t* buf) {
     buf[1]        = tbl[(bits >> 12) & 0x3f];
     buf[0]        = tbl[ bits >> 18];
 }
+
+static bool is_valid(uint8_t val) {
+    return ((val >= 'a') & (val <= 'z')) |
+           ((val >= 'A') & (val <= 'Z')) |
+           ((val >= '/') & (val <= '9')) |
+           (val == '+') | (val == '=');
+}
+
+static unsigned get_val(uint8_t val) {
+    static const uint8_t tbl[] = {
+        0x3e, 0x00, 0x00, 0x00, 0x3f, 0x34, 0x35, 0x36,
+        0x37, 0x38, 0x39, 0x3a, 0x3b, 0x3c, 0x3d, 0x00,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
+        0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09,
+        0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11,
+        0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x1a, 0x1b,
+        0x1c, 0x1d, 0x1e, 0x1f, 0x20, 0x21, 0x22, 0x23,
+        0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b,
+        0x2c, 0x2d, 0x2e, 0x2f, 0x30, 0x31, 0x32, 0x33
+    };
+    return tbl[val - '+'];
+    /*val -= 'A';
+    val -= (val >> 5) * 6;
+    val -= (val >> 7) * 145;
+    val -=
+    return val;*/
+}
+
+size_t from_base64(const uint8_t* data, size_t len, uint8_t* buf, size_t buf_len) {
+    if(len > 2) { // adjust needed len when there is padding
+        len -= data[len - 1] == '=';
+        len -= data[len - 1] == '=';
+    }
+    size_t needed_len = (len * 3) >> 2;
+    if(buf_len < needed_len) { // buffer too small
+        return SIZE_MAX;
+    }
+    for(size_t i = 0; i < len; i += 1) {
+        if(!is_valid(data[i])) {
+            return SIZE_MAX;
+        }
+    }
+    size_t out_i  = 0;
+    unsigned bits = 0;
+    for(size_t i = 0; i < len; i += 1) {
+        const unsigned extract = ((i >> 1) | i) & 1;
+        const unsigned shift   = (i & 0x3) << 1;
+        const unsigned value   = get_val(data[i]);
+        bits <<= shift;
+        bits  |= value >> (shift ^ 6);
+        buf[out_i] = bits;
+        bits     >>= (extract << 3);
+        bits       = value;
+        out_i += extract;
+    }
+    return out_i;
+}
