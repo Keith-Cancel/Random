@@ -24,7 +24,7 @@ SOFTWARE.
 #include <stdbool.h>
 
 size_t get_base64_length(size_t length);
-bool   to_base64(const uint8_t* data, size_t len, uint8_t* buf, size_t buf_len);
-void   to_base64_no_buffer_check(const uint8_t* data, size_t len, uint8_t* buf);
+size_t to_base64(const uint8_t* data, size_t len, uint8_t* buf, size_t buf_len);
+size_t from_base64(const uint8_t* data, size_t len, uint8_t* buf, size_t buf_len);
 
 #endif /* BASE_64_H */
