@@ -18,6 +18,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 #include "base64.h"
+#include <string.h>
 
 #define FULL_GCC_VERSION (__GNUC__ * 100 + __GNUC_MINOR__)
 // Clang builtin check
