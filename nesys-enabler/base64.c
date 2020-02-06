@@ -20,6 +20,8 @@ SOFTWARE.
 #include "base64.h"
 #include <string.h>
 
+size_t to_base64_no_length_check(const uint8_t* data, size_t len, uint8_t* buf);
+
 #define FULL_GCC_VERSION (__GNUC__ * 100 + __GNUC_MINOR__)
 // Clang builtin check
 #ifndef __has_builtin
@@ -51,15 +53,18 @@ size_t get_base64_length(size_t length) {
     return j + pad;
 }
 
-bool to_base64(const uint8_t* data, size_t len, uint8_t* buf, size_t buf_len) {
-    if(buf_len < get_base64_length(len)) {
-        return false;
+size_t to_base64(const uint8_t* data, size_t len, uint8_t* buf, size_t buf_len) {
+    if(buf_len <= get_base64_length(len)) {
+        return SIZE_MAX;
     }
-    to_base64_no_buffer_check(data, len, buf);
-    return true;
+    if(len == 0) {
+        return 0;
+    }
+    return to_base64_no_length_check(data, len, buf);
 }
 
-void to_base64_no_buffer_check(const uint8_t* data, size_t len, uint8_t* buf) {
+// Handles lengths [1-len] assumes buffer is large enough
+size_t to_base64_no_length_check(const uint8_t* data, size_t len, uint8_t* buf) {
     static const char tbl[] = {
         'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
         'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
@@ -72,7 +77,7 @@ void to_base64_no_buffer_check(const uint8_t* data, size_t len, uint8_t* buf) {
     };
     size_t in_index  = 0;
     size_t out_index = 0;
-    while(in_index <= (len - 4)) {
+    while((in_index + 4) <= len) {
         uint32_t val;
         memcpy(&val, data + in_index, 4);
         val = is_litte_endian() ? byte_swap32(val) : val;
@@ -100,6 +105,7 @@ void to_base64_no_buffer_check(const uint8_t* data, size_t len, uint8_t* buf) {
     buf[rem_s + 1]= tbl[(bits >>  6) & 0x3f];
     buf[1]        = tbl[(bits >> 12) & 0x3f];
     buf[0]        = tbl[ bits >> 18];
+    return out_index + 4;
 }
 
 static bool is_valid(uint8_t val) {
