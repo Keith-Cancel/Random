@@ -17,15 +17,11 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-#include <stdint.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
 
-const char hex_letters[] = {
-    '0', '1', '2', '3', '4', '5', '6', '7',
-    '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'
-};
 const char header[] = { 'B', 'G', '0', '4' };
 
 int64_t get_id(const char* file_path) {
@@ -65,9 +61,10 @@ int save_id(const char* file_path, uint64_t id) {
             return -1;
         }
     }
+    char buffer[13] = { 0 };
+    snprintf(buffer, 13, "%012"PRIX64"", id);
     for(int i = 0; i < 12; i++) {
-        int hex = (id >> ((11 - i) * 4)) & 0xf;
-        if(fputc(hex_letters[hex], fp) == EOF) {
+        if(fputc(buffer[i], fp) == EOF) {
             fclose(fp);
             return -1;
         }
