@@ -17,23 +17,23 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-#ifndef SHARED_H
-#define SHARED_H
+#ifndef WORKER_DATA_H
+#define WORKER_DATA_H
 
 #include <stdbool.h>
 #include <stdint.h>
 
-typedef struct shared_data_s shared_data;
+typedef struct worker_data_s worker_data;
 
-shared_data* create_shared_data();
-void         free_shared_data(shared_data* data);
+worker_data* create_worker_data();
+void         free_worker_data(worker_data* data);
 
-int32_t  get_cur_drives(shared_data* data);
-uint8_t* get_profile_id(shared_data* data);
-uint8_t* get_status_text(shared_data* data);
+int32_t  get_cur_drives(worker_data* data);
+uint8_t* get_profile_id(worker_data* data);
+uint8_t* get_status_text(worker_data* data);
 
-bool set_cur_drives(shared_data* data, uint32_t drives);
-bool set_profile_id(shared_data* data, const uint8_t* txt);
-bool set_status_text(shared_data* data, const uint8_t* txt);
+bool set_cur_drives(worker_data* data, uint32_t drives);
+bool set_profile_id(worker_data* data, const uint8_t* txt);
+bool set_status_text(worker_data* data, const uint8_t* txt);
 
-#endif /* SHARED_H */
+#endif /* WORKER_DATA_H */

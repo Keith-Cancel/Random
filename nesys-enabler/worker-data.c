@@ -17,11 +17,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
-#include "shared.h"
+#include "worker-data.h"
+
 #include <windows.h>
 #include <string.h>
 
- struct shared_data_s {
+ struct worker_data_s {
     HANDLE   mutex;
     uint8_t* status;
     uint8_t* profile;
@@ -59,7 +60,7 @@ static uint8_t* get_string(HANDLE mutex, uint8_t** str) {
     return tmp;
 }
 
-int32_t get_cur_drives(shared_data* data) {
+int32_t get_cur_drives(worker_data* data) {
     int32_t tmp = 0;
     if(WaitForSingleObject(data->mutex, 100) != WAIT_OBJECT_0) {
         return -1;
@@ -69,15 +70,15 @@ int32_t get_cur_drives(shared_data* data) {
     return tmp;
 }
 
-uint8_t* get_profile_id(shared_data* data) {
+uint8_t* get_profile_id(worker_data* data) {
     return get_string(data->mutex, &(data->profile));
 }
 
-uint8_t* get_status_text(shared_data* data) {
+uint8_t* get_status_text(worker_data* data) {
     return get_string(data->mutex, &(data->status));
 }
 
-bool set_cur_drives(shared_data* data, uint32_t drives) {
+bool set_cur_drives(worker_data* data, uint32_t drives) {
     if(WaitForSingleObject(data->mutex, 100) != WAIT_OBJECT_0) {
         return false;
     }
@@ -86,20 +87,20 @@ bool set_cur_drives(shared_data* data, uint32_t drives) {
     return true;
 }
 
-bool set_profile_id(shared_data* data, const uint8_t* txt) {
+bool set_profile_id(worker_data* data, const uint8_t* txt) {
     return update_string(data->mutex, txt, &(data->profile));
 }
 
-bool set_status_text(shared_data* data, const uint8_t* txt) {
+bool set_status_text(worker_data* data, const uint8_t* txt) {
     return update_string(data->mutex, txt, &(data->status));
 }
 
-shared_data* create_shared_data() {
+worker_data* create_worker_data() {
     HANDLE mtx = CreateMutexW(NULL, FALSE, NULL);
     if(mtx == NULL) {
         return NULL;
     }
-    shared_data* tmp = malloc(sizeof(shared_data));
+    worker_data* tmp = malloc(sizeof(worker_data));
     if(tmp == NULL) {
         CloseHandle(mtx);
         return NULL;
@@ -111,7 +112,7 @@ shared_data* create_shared_data() {
     return tmp;
 }
 
-void free_shared_data(shared_data* data) {
+void free_worker_data(worker_data* data) {
     CloseHandle(data->mutex);
     free(data);
 }
