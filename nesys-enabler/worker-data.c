@@ -179,10 +179,8 @@ worker_data* create_worker_data() {
         CloseHandle(mtx);
         return NULL;
     }
-    tmp->mutex   = mtx;
-    tmp->profile = NULL;
-    tmp->status  = NULL;
-    tmp->drives  = 0;
+    memset(tmp, 0, sizeof(worker_data));
+    tmp->mutex = mtx;
     return tmp;
 }
 
