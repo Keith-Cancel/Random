@@ -26,7 +26,13 @@ SOFTWARE.
     HANDLE   mutex;
     uint8_t* status;
     uint8_t* profile;
+    uint8_t* name;
+    uint8_t* ip;
+    uint8_t* key;
+    size_t   key_len;
     int32_t  drives;
+    uint16_t port;
+    bool     stop;
 };
 
 static bool update_string(HANDLE mutex, const uint8_t* src, uint8_t** dest) {
@@ -70,6 +76,36 @@ int32_t get_cur_drives(worker_data* data) {
     return tmp;
 }
 
+uint16_t get_cur_port(worker_data* data) {
+    uint16_t tmp = 0;
+    if(WaitForSingleObject(data->mutex, 100) != WAIT_OBJECT_0) {
+        return 0;
+    }
+    tmp = data->port;
+    ReleaseMutex(data->mutex);
+    return tmp;
+}
+
+uint8_t* get_game_name(worker_data* data) {
+    return get_string(data->mutex, &(data->name));
+}
+
+uint8_t* get_IPv4_address(worker_data* data) {
+    return get_string(data->mutex, &(data->ip));
+}
+
+size_t get_network_key(worker_data* data, uint8_t** key) {
+    size_t tmp = 0;
+    if(WaitForSingleObject(data->mutex, 100) != WAIT_OBJECT_0) {
+        return 0;
+    }
+    *key      = data->key;
+    data->key = NULL;
+    tmp       = data->key_len;
+    ReleaseMutex(data->mutex);
+    return tmp;
+}
+
 uint8_t* get_profile_id(worker_data* data) {
     return get_string(data->mutex, &(data->profile));
 }
@@ -78,12 +114,50 @@ uint8_t* get_status_text(worker_data* data) {
     return get_string(data->mutex, &(data->status));
 }
 
+// Set Functions
+
 bool set_cur_drives(worker_data* data, uint32_t drives) {
     if(WaitForSingleObject(data->mutex, 100) != WAIT_OBJECT_0) {
         return false;
     }
     data->drives = drives;
     ReleaseMutex(data->mutex);
+    return true;
+}
+
+bool set_cur_port(worker_data* data, uint16_t port) {
+    if(WaitForSingleObject(data->mutex, 100) != WAIT_OBJECT_0) {
+        return false;
+    }
+    data->port = port;
+    ReleaseMutex(data->mutex);
+    return true;
+}
+
+bool set_game_name(worker_data* data, const uint8_t* txt) {
+    return update_string(data->mutex, txt, &(data->name));
+}
+
+bool set_IPv4_address(worker_data* data, const uint8_t* txt) {
+    return update_string(data->mutex, txt, &(data->ip));
+}
+
+bool set_network_key(worker_data* data, const uint8_t* key, size_t key_len) {
+    uint8_t* key_cpy = malloc(key_len);
+    uint8_t* key_old = NULL;
+    if(key_cpy == NULL) {
+        return false;
+    }
+    memcpy(key_cpy, key, key_len);
+    if(WaitForSingleObject(data->mutex, 100) != WAIT_OBJECT_0) {
+        free(key_cpy);
+        return false;
+    }
+    key_old       = data->key;
+    data->key     = key_cpy;
+    data->key_len = key_len;
+    ReleaseMutex(data->mutex);
+    free(key_old);
     return true;
 }
 
@@ -114,5 +188,10 @@ worker_data* create_worker_data() {
 
 void free_worker_data(worker_data* data) {
     CloseHandle(data->mutex);
+    free(data->status);
+    free(data->profile);
+    free(data->name);
+    free(data->ip);
+    free(data->key);
     free(data);
 }

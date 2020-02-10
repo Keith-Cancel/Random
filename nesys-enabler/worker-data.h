@@ -29,10 +29,18 @@ worker_data* create_worker_data();
 void         free_worker_data(worker_data* data);
 
 int32_t  get_cur_drives(worker_data* data);
+uint16_t get_cur_port(worker_data* data);
+uint8_t* get_game_name(worker_data* data);
+uint8_t* get_IPv4_address(worker_data* data);
+size_t   get_network_key(worker_data* data, uint8_t** key);
 uint8_t* get_profile_id(worker_data* data);
 uint8_t* get_status_text(worker_data* data);
 
 bool set_cur_drives(worker_data* data, uint32_t drives);
+bool set_cur_port(worker_data* data, uint16_t port);
+bool set_game_name(worker_data* data, const uint8_t* txt);
+bool set_IPv4_address(worker_data* data, const uint8_t* txt);
+bool set_network_key(worker_data* data, const uint8_t* key, size_t key_len);
 bool set_profile_id(worker_data* data, const uint8_t* txt);
 bool set_status_text(worker_data* data, const uint8_t* txt);
 
