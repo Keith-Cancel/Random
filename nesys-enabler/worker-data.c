@@ -22,8 +22,8 @@ SOFTWARE.
 #include <windows.h>
 #include <string.h>
 
- struct worker_data_s {
-    HANDLE   mutex;
+struct worker_data_s {
+    CRITICAL_SECTION crit;
     uint8_t* status;
     uint8_t* profile;
     uint8_t* name;
@@ -35,7 +35,7 @@ SOFTWARE.
     bool     stop;
 };
 
-static bool update_string(HANDLE mutex, const uint8_t* src, uint8_t** dest) {
+static bool update_string(CRITICAL_SECTION* crit, const uint8_t* src, uint8_t** dest) {
     size_t len       = strlen((char*)src);
     uint8_t* src_cpy = malloc(len + 1);
     uint8_t* dst_old = NULL;
@@ -44,102 +44,84 @@ static bool update_string(HANDLE mutex, const uint8_t* src, uint8_t** dest) {
     }
     memcpy(src_cpy, src, len);
     src_cpy[len] = '\0';
-    if(WaitForSingleObject(mutex, 100) != WAIT_OBJECT_0) {
-        free(src_cpy);
-        return false;
-    }
+    EnterCriticalSection(crit);
     dst_old = *dest;
     *dest   = src_cpy;
-    ReleaseMutex(mutex);
+    LeaveCriticalSection(crit);
     free(dst_old);
     return true;
 }
 
-static uint8_t* get_string(HANDLE mutex, uint8_t** str) {
+static uint8_t* get_string(CRITICAL_SECTION* crit, uint8_t** str) {
     uint8_t* tmp = NULL;
-    if(WaitForSingleObject(mutex, 100) != WAIT_OBJECT_0) {
-        return NULL;
-    }
+    EnterCriticalSection(crit);
     tmp  = *str;
     *str = NULL;
-    ReleaseMutex(mutex);
+    LeaveCriticalSection(crit);
     return tmp;
 }
 
 int32_t get_cur_drives(worker_data* data) {
-    int32_t tmp = 0;
-    if(WaitForSingleObject(data->mutex, 100) != WAIT_OBJECT_0) {
-        return -1;
-    }
-    tmp = data->drives;
-    ReleaseMutex(data->mutex);
+    EnterCriticalSection(&(data->crit));
+    int32_t tmp = data->drives;
+    LeaveCriticalSection(&(data->crit));
     return tmp;
 }
 
 uint16_t get_cur_port(worker_data* data) {
-    uint16_t tmp = 0;
-    if(WaitForSingleObject(data->mutex, 100) != WAIT_OBJECT_0) {
-        return 0;
-    }
-    tmp = data->port;
-    ReleaseMutex(data->mutex);
+    EnterCriticalSection(&(data->crit));
+    uint16_t tmp = data->port;
+    LeaveCriticalSection(&(data->crit));
     return tmp;
 }
 
 uint8_t* get_game_name(worker_data* data) {
-    return get_string(data->mutex, &(data->name));
+    return get_string(&(data->crit), &(data->name));
 }
 
 uint8_t* get_IPv4_address(worker_data* data) {
-    return get_string(data->mutex, &(data->ip));
+    return get_string(&(data->crit), &(data->ip));
 }
 
 size_t get_network_key(worker_data* data, uint8_t** key) {
-    size_t tmp = 0;
-    if(WaitForSingleObject(data->mutex, 100) != WAIT_OBJECT_0) {
-        return 0;
-    }
-    *key      = data->key;
-    data->key = NULL;
-    tmp       = data->key_len;
-    ReleaseMutex(data->mutex);
+    EnterCriticalSection(&(data->crit));
+    *key       = data->key;
+    data->key  = NULL;
+    size_t tmp = data->key_len;
+    LeaveCriticalSection(&(data->crit));
     return tmp;
 }
 
 uint8_t* get_profile_id(worker_data* data) {
-    return get_string(data->mutex, &(data->profile));
+    return get_string(&(data->crit), &(data->profile));
 }
 
 uint8_t* get_status_text(worker_data* data) {
-    return get_string(data->mutex, &(data->status));
+    return get_string(&(data->crit), &(data->status));
 }
 
 // Set Functions
 
 bool set_cur_drives(worker_data* data, uint32_t drives) {
-    if(WaitForSingleObject(data->mutex, 100) != WAIT_OBJECT_0) {
-        return false;
-    }
+    EnterCriticalSection(&(data->crit));
     data->drives = drives;
-    ReleaseMutex(data->mutex);
+    LeaveCriticalSection(&(data->crit));
     return true;
 }
 
 bool set_cur_port(worker_data* data, uint16_t port) {
-    if(WaitForSingleObject(data->mutex, 100) != WAIT_OBJECT_0) {
-        return false;
-    }
+    EnterCriticalSection(&(data->crit));
     data->port = port;
-    ReleaseMutex(data->mutex);
+    LeaveCriticalSection(&(data->crit));
     return true;
 }
 
 bool set_game_name(worker_data* data, const uint8_t* txt) {
-    return update_string(data->mutex, txt, &(data->name));
+    return update_string(&(data->crit), txt, &(data->name));
 }
 
 bool set_IPv4_address(worker_data* data, const uint8_t* txt) {
-    return update_string(data->mutex, txt, &(data->ip));
+    return update_string(&(data->crit), txt, &(data->ip));
 }
 
 bool set_network_key(worker_data* data, const uint8_t* key, size_t key_len) {
@@ -149,43 +131,40 @@ bool set_network_key(worker_data* data, const uint8_t* key, size_t key_len) {
         return false;
     }
     memcpy(key_cpy, key, key_len);
-    if(WaitForSingleObject(data->mutex, 100) != WAIT_OBJECT_0) {
-        free(key_cpy);
-        return false;
-    }
+    EnterCriticalSection(&(data->crit));
     key_old       = data->key;
     data->key     = key_cpy;
     data->key_len = key_len;
-    ReleaseMutex(data->mutex);
+    LeaveCriticalSection(&(data->crit));
     free(key_old);
     return true;
 }
 
 bool set_profile_id(worker_data* data, const uint8_t* txt) {
-    return update_string(data->mutex, txt, &(data->profile));
+    return update_string(&(data->crit), txt, &(data->profile));
 }
 
 bool set_status_text(worker_data* data, const uint8_t* txt) {
-    return update_string(data->mutex, txt, &(data->status));
+    return update_string(&(data->crit), txt, &(data->status));
 }
 
 worker_data* create_worker_data() {
-    HANDLE mtx = CreateMutexW(NULL, FALSE, NULL);
-    if(mtx == NULL) {
+    CRITICAL_SECTION crit;
+    if(!InitializeCriticalSectionAndSpinCount(&crit, 512)) {
         return NULL;
     }
     worker_data* tmp = malloc(sizeof(worker_data));
     if(tmp == NULL) {
-        CloseHandle(mtx);
+        DeleteCriticalSection(&crit);
         return NULL;
     }
     memset(tmp, 0, sizeof(worker_data));
-    tmp->mutex = mtx;
+    tmp->crit = crit;
     return tmp;
 }
 
 void free_worker_data(worker_data* data) {
-    CloseHandle(data->mutex);
+    DeleteCriticalSection(&(data->crit));
     free(data->status);
     free(data->profile);
     free(data->name);
