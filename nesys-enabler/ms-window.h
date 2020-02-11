@@ -52,6 +52,7 @@ winResult poll_windows();
 void      set_wait_timeout(int timeout);
 winResult wait_windows();
 bool      init_ms_window();
+void      cleanup_ms_window();
 
 void     ctrl_enable(msWindow* win, msCtrl ctrl);
 void     ctrl_disable(msWindow* win, msCtrl ctrl);

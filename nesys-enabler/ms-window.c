@@ -225,6 +225,12 @@ bool init_ms_window() {
     return true;
 }
 
+void cleanup_ms_window() {
+    DestroyWindow(timer_window);
+    DeleteObject(win_bg_brush);
+    UnregisterClass(window_class_name, GetModuleHandle(NULL));
+}
+
 void annihilate_window(msWindow* win) {
     for(size_t i = 0; i < win->child_cnt; i++) {
         HWND child = win->children[i].hWnd;
