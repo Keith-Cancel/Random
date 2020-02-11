@@ -64,7 +64,6 @@ static void display_custom_error(const char* msg) {
     MessageBoxA(NULL, msg, "ERROR", MB_ICONERROR | MB_OK);
 }
 
-
 static unsigned get_height(RECT r) {
     return r.bottom - r.top;
 }
@@ -88,13 +87,7 @@ static bool expand_children_if_full(msWindow* win) {
 }
 
 static void resize_window(HWND hWnd, unsigned width, unsigned height) {
-    RECT r;
-    GetWindowRect(hWnd, &r);
-    HWND par = GetParent(hWnd);
-    if(par != NULL) {
-        MapWindowPoints(HWND_DESKTOP, par, (LPPOINT)&r, 2);
-    }
-    MoveWindow(hWnd, r.left, r.top, width, height, TRUE);
+    SetWindowPos(hWnd, HWND_TOP, 0, 0, width, height, SWP_NOMOVE | SWP_NOZORDER);
 }
 
 static msCtrl add_child(msWindow* win, HWND child, msCtrlType type, uint16_t base_width, uint16_t base_height) {
@@ -361,10 +354,19 @@ void ctrl_set_text(msWindow* win, msCtrl ctrl, const char* text, bool fit) {
     if(hWnd == NULL) {
         return;
     }
-    SetWindowTextA(hWnd, text);
+    size_t buf_sz = strlen(text) + 3;
+    char buf[buf_sz];
+    memset(buf, 0, buf_sz);
+    GetWindowTextA(hWnd, buf, buf_sz);
+    // Old string and current are the same don't update anything.
+    if(strcmp(text, buf) == 0) {
+        return;
+    }
+    // Reize then set text this stops reduces the number of repaints needed.
     if(fit) {
         size_to_text(hWnd, text, w, h);
     }
+    SetWindowTextA(hWnd, text);
 }
 
 void ctrl_move(msWindow* win, msCtrl ctrl, unsigned x, unsigned y) {
