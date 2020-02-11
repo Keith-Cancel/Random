@@ -174,9 +174,6 @@ LRESULT CALLBACK window_events(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam
     }
     msWindow* win = (msWindow*)GetWindowLongPtr(hWnd, 0);
     switch(msg) {
-        case WM_CLOSE:
-            annihilate_window(win);
-            break;
         case WM_DESTROY:
             // App is only using one windows for now so this is fine.
             PostQuitMessage(0);
